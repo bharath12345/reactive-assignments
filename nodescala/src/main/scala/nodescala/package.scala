@@ -36,15 +36,6 @@ package object nodescala {
      *  If any of the futures `fs` fails, the resulting future also fails.
      */
     def all[T](fs: List[Future[T]]): Future[List[T]] =  {
-      
-      /*var _fs = fs
-      val r = ListBuffer[T]()
-      while(_fs != Nil) {
-        r += await{_fs.head}
-        _fs = _fs.tail
-      }
-      r.result*/
-      
       val successful = Promise[List[T]]()
       successful.success(Nil)
       fs.foldRight(successful.future){
@@ -116,7 +107,16 @@ package object nodescala {
      *  The resulting future contains a value returned by `cont`.
      */
     def continueWith[S](cont: Future[T] => S): Future[S] = {
-      val s = f.flatMap { case Success(x) => future(cont(f))}
+      val s = f.flatMap { 
+        case Success(x) => {
+            println("success x = " + x)
+            future(cont(f))
+          }
+        case _ => {
+            println("failure")
+            null
+          }
+        }
       return s
     }
 

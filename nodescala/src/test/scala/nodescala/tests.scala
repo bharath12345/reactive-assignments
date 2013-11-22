@@ -75,7 +75,7 @@ class NodeScalaSuite extends FunSuite {
     assert(x.isCompleted == true)
   }
 
-  /////////////////
+  //// FutureOps => Here on...
 
   test("Get me NOW!") {
     val x = future { blocking(Thread.sleep(3000L)); "doneX" }
@@ -101,14 +101,21 @@ class NodeScalaSuite extends FunSuite {
     def cont(in: Future[String]): Int = {
       val inS = Await.result(in, 1 second)
       println("inS = " + inS)
-      inS match {
-        case "doneX" => 10
-        case "doneY" => 20
+      
+      val retInt = inS match {
+        //case "doneX" => 10
+        case _ => 20
       }
+      println("return int = " + retInt)
+      
+      /*async {
+        val ssss = await { in }
+      }*/
+      
+      retInt
     }
     
     val x = future { /*blocking(Thread.sleep(1000L));*/ "doneX" }
-    //val y = future { blocking(Thread.sleep(1000L)); "doneY" }
     
     val f = FutureOps(x)
     val s = f.continueWith(cont)
@@ -151,6 +158,10 @@ class NodeScalaSuite extends FunSuite {
       case _ => working.unsubscribe()
     }
   }
+  
+  //////////////////////////////////////////////////////////////////////////////////////////////////
+  /////// Part 2: An Asynchronous HTTP Server
+  
 
   /*class DummyExchange(val request: Request) extends Exchange {
     @volatile var response = ""
