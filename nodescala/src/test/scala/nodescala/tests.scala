@@ -203,23 +203,7 @@ class NodeScalaSuite extends FunSuite {
       if (handler != null) handler(exchange)
       exchange
     }
-
-    def nextRequest(): Future[(Request, Exchange)] = {
-      val p = Promise[(Request, Exchange)]()
-      val f = p.future
-
-      createContext(ex => {
-        p.success((ex.request, ex))
-      })
-
-      f onComplete { ex =>
-        removeContext
-      }
-
-      f
-    }
-
-  }
+}
 
   class DummyServer(val port: Int) extends NodeScala {
     self =>
