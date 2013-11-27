@@ -54,18 +54,26 @@ trait NodeScala {
    *  @return               a subscription that can stop the server and all its asynchronous operations *entirely*.
    */
   def start(relativePath: String)(handler: Request => Response): Subscription = {
-    val listenr = new Listener.Default(port, relativePath)
-    val cts = CancellationTokenSource()
-    val ct = cts.cancellationToken
-    async {
-      while (ct.nonCancelled) {
-        async {
-          val rq = listenr.nextRequest()
-          //respond(Exchange, ct, handler(rq))
+    val listenr = createListener(relativePath)
+    val ls = listenr.start
+    
+    val reqs = Future.run() { ct =>
+      Future {
+        while (ct.nonCancelled) {
+          val f = listenr.nextRequest
+          f onComplete { 
+            case rqExg => {
+              val req = rqExg.get._1
+              val exc = rqExg.get._2
+              val res = handler(req)
+              respond(exc, ct, res)
+            }
+          }
         }
       }
     }
-    cts
+    
+     Subscription.apply(ls, reqs)
   }
 
 }
@@ -170,28 +178,17 @@ object NodeScala {
 
       def nextRequest(): Future[(Request, Exchange)] = {
         val p = Promise[(Request, Exchange)]()
-
-        p.future map { 
-          blah => {
-            //createContext(blah._2)
-            
-            def handler(exg: Exchange): Unit = {
-              
-            }
-            
-            createContext(handler)
-            removeContext()
-          }
+        val f = p.future
+        
+        createContext(ex => {
+          p.success((ex.request, ex))
+        })
+        
+        f onComplete { ex =>
+          removeContext
         }
         
-        /*async {
-          // context is with respect to a relativePath ===> THINK
-
-          createContext(handler: Exchange => Unit)
-          removeContext()
-        }*/
-
-        p.future
+        f
       }
     }
   }

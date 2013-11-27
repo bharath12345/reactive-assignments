@@ -101,22 +101,22 @@ class NodeScalaSuite extends FunSuite {
     def cont(in: Future[String]): Int = {
       val inS = Await.result(in, 1 second)
       println("inS = " + inS)
-      
+
       val retInt = inS match {
         //case "doneX" => 10
         case _ => 20
       }
       println("return int = " + retInt)
-      
+
       /*async {
         val ssss = await { in }
       }*/
-      
+
       retInt
     }
-    
+
     val x = future { /*blocking(Thread.sleep(1000L));*/ "doneX" }
-    
+
     val f = FutureOps(x)
     val s = f.continueWith(cont)
     assert(Await.result(s, 2 seconds) == 10)
@@ -148,22 +148,21 @@ class NodeScalaSuite extends FunSuite {
     val working = Future.run() { ct =>
       async {
         while (ct.nonCancelled) {
-          println("working")
+          //println("working")
           blocking(Thread.sleep(500L))
         }
-        println("done")
+        //println("done")
       }
     }
     Future.delay(5 seconds) onSuccess {
       case _ => working.unsubscribe()
     }
   }
-  
+
   //////////////////////////////////////////////////////////////////////////////////////////////////
   /////// Part 2: An Asynchronous HTTP Server
-  
 
-  /*class DummyExchange(val request: Request) extends Exchange {
+  class DummyExchange(val request: Request) extends Exchange {
     @volatile var response = ""
     val loaded = Promise[String]()
     def write(s: String) {
@@ -204,6 +203,22 @@ class NodeScalaSuite extends FunSuite {
       if (handler != null) handler(exchange)
       exchange
     }
+
+    def nextRequest(): Future[(Request, Exchange)] = {
+      val p = Promise[(Request, Exchange)]()
+      val f = p.future
+
+      createContext(ex => {
+        p.success((ex.request, ex))
+      })
+
+      f onComplete { ex =>
+        removeContext
+      }
+
+      f
+    }
+
   }
 
   class DummyServer(val port: Int) extends NodeScala {
@@ -251,7 +266,7 @@ class NodeScalaSuite extends FunSuite {
 
     def test(req: Request) {
       val webpage = dummy.emit("/testDir", req)
-      val content = Await.result(webpage.loaded.future, 1 second)
+      val content = Await.result(webpage.loaded.future, 3 second)
       val expected = (for (kv <- req.iterator) yield (kv + "\n").toString).mkString
       assert(content == expected, s"'$content' vs. '$expected'")
     }
@@ -261,7 +276,7 @@ class NodeScalaSuite extends FunSuite {
     test(immutable.Map("WorksForThree" -> List("Always works. Trust me.")))
 
     dummySubscription.unsubscribe()
-  }*/
+  }
 
 }
 
