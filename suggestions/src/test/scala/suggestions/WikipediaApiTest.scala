@@ -19,6 +19,7 @@ import org.scalatest.junit.JUnitRunner
 class WikipediaApiTest extends FunSuite {
 
   object mockApi extends WikipediaApi {
+    
     def wikipediaSuggestion(term: String) = Future {
       if (term.head.isLetter) {
         for (suffix <- List(" (Computer Scientist)", " (Footballer)")) yield term + suffix

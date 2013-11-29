@@ -37,8 +37,9 @@ trait WikipediaApi {
      *
      * E.g. `"erik", "erik meijer", "martin` should become `"erik", "erik_meijer", "martin"`
      */
-    def sanitized: Observable[String] = ???
-
+    def sanitized: Observable[String] = obs map {
+      withSpace => withSpace.replaceAll(" ", "_")
+    }
   }
 
   implicit class ObservableOps[T](obs: Observable[T]) {
@@ -48,7 +49,13 @@ trait WikipediaApi {
      *
      * E.g. `1, 2, 3, !Exception!` should become `Success(1), Success(2), Success(3), Failure(Exception), !TerminateStream!`
      */
-    def recovered: Observable[Try[T]] = ???
+    def recovered: Observable[Try[T]] = Observable(observer => {
+      obs.subscribe(
+        value => observer.onNext(Success(value)),
+        error => observer.onNext(Failure(error)),
+        () => observer.onCompleted
+      )
+    })
 
     /** Emits the events from the `obs` observable, until `totalSec` seconds have elapsed.
      *
@@ -56,7 +63,15 @@ trait WikipediaApi {
      *
      * Note: uses the existing combinators on observables.
      */
-    def timedOut(totalSec: Long): Observable[T] = ???
+    def timedOut(totalSec: Long): Observable[T] = Observable(observer => {
+      obs.subscribe(
+        value => observer.onNext(value),
+        error => observer.onError(error),
+        () => observer.onCompleted,
+        null //scheduler
+      )
+    })
+    
 
 
     /** Given a stream of events `obs` and a method `requestMethod` to map a request `T` into
@@ -84,7 +99,13 @@ trait WikipediaApi {
      *
      * Observable(1, 1, 1, 2, 2, 2, 3, 3, 3)
      */
-    def concatRecovered[S](requestMethod: T => Observable[S]): Observable[Try[S]] = ???
+    def concatRecovered[S](requestMethod: T => Observable[S]): Observable[Try[S]] = {
+      val xyz = obs map {
+        x => requestMethod(x)
+      }
+      
+      ObservableOps(xyz.concat).recovered
+    }
 
   }
 

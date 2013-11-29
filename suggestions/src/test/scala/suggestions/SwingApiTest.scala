@@ -87,4 +87,23 @@ class SwingApiTest extends FunSuite {
 
     assert(observed == Seq("T", "Tu", "Tur", "Turi", "Turin", "Turing"), observed)
   }
+  
+  test("SwingApi button click test") {
+    val button = new swingApi.Button
+    val clcks = button.clicks
+    
+    var observed = 0
+    val sub = clcks subscribe {
+      x => {
+        //println("you clicker!")
+        observed = observed + 1
+      }
+    }
+    
+    button.click()
+    button.click()
+    button.click()
+    
+    assert(observed == 3)
+  }
 }

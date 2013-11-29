@@ -80,20 +80,26 @@ object WikipediaSuggest extends SimpleSwingApplication with ConcreteSwingApi wit
      *  `myEditorPane.text = "act"` : sets the content of `myEditorPane` to "act"
      */
 
-    // TO IMPLEMENT
-    val searchTerms: Observable[String] = ???
+    val searchTerms: Observable[String] = searchTermField.textValues
 
-    // TO IMPLEMENT
-    val suggestions: Observable[Try[List[String]]] = ???
+    val suggestions: Observable[Try[List[String]]] = searchTerms concatRecovered wikiSuggestResponseStream 
 
-
-    // TO IMPLEMENT
     val suggestionSubscription: Subscription =  suggestions.observeOn(eventScheduler) subscribe {
-      x => ???
+      x => x match {
+        case Success(y) => suggestionList.listData = y
+        case Failure(z) => {
+          suggestionList.listData.addString(new StringBuilder("bad"))
+        }
+      }
     }
 
     // TO IMPLEMENT
-    val selections: Observable[String] = ???
+    /*val selections: Observable[String] =  {
+      val xyz = button.clicks
+      xyz subscribe {
+        abc => suggestionList.selection.items
+      }
+    }*/
 
     // TO IMPLEMENT
     val pages: Observable[Try[String]] = ???
