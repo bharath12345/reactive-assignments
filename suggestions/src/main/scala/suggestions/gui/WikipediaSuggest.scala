@@ -93,20 +93,24 @@ object WikipediaSuggest extends SimpleSwingApplication with ConcreteSwingApi wit
       }
     }
 
-    // TO IMPLEMENT
-    /*val selections: Observable[String] =  {
-      val xyz = button.clicks
-      xyz subscribe {
-        abc => suggestionList.selection.items
-      }
-    }*/
+    ////////
+    
+    val selections: Observable[String] =  Observable(observer => {
+      button.clicks.subscribe(
+        but => suggestionList.selection.items.foreach(observer.onNext),
+        error => observer.onError(error),
+        () => observer.onCompleted
+      )
+    })
 
-    // TO IMPLEMENT
-    val pages: Observable[Try[String]] = ???
+    val pages: Observable[Try[String]] = selections concatRecovered wikiPageResponseStream
 
     // TO IMPLEMENT
     val pageSubscription: Subscription = pages.observeOn(eventScheduler) subscribe {
-      x => ???
+      x => x match {
+        case Success(txt) => editorpane.text = txt
+        case Failure(txt) => editorpane.text = "something went wrong"
+      }
     }
 
   }
