@@ -11,6 +11,7 @@ import java.util.concurrent.{ Executor, ThreadPoolExecutor, TimeUnit, LinkedBloc
 import com.sun.net.httpserver.{ HttpExchange, HttpHandler, HttpServer }
 import java.net.InetSocketAddress
 import scala.util.control.Breaks._
+import scala.util.Try
 
 /**
  * Contains utilities common to the NodeScala�� framework.
@@ -34,12 +35,17 @@ trait NodeScala {
    */
   private def respond(exchange: Exchange, token: CancellationToken, response: Response): Unit = {
     //response.foreach(chunk => exchange.write(chunk))
-    for {
+    
+    /* for {
       chunk <- response
     } {
       if (token.isCancelled) break
+      else if(response.hasNext == false) break
       else exchange.write(chunk)
-    }
+    }*/
+    
+    while( response.hasNext & token.nonCancelled) 
+      exchange.write(response.next)   
   }
 
   /**
@@ -67,6 +73,7 @@ trait NodeScala {
               val exc = rqExg.get._2
               val res = handler(req)
               respond(exc, ct, res)
+              exc.close
             }
           }
         }
@@ -150,7 +157,13 @@ object NodeScala {
      *  @return                the promise holding the pair of a request and an exchange object
      */
     def nextRequest(): Future[(Request, Exchange)] = {
-        val p = Promise[(Request, Exchange)]()
+        
+      val p = Promise[(Request, Exchange)]()
+      createContext( x => { p.complete ( Try( (x.request, x) ) ); removeContext() } )
+      p.future
+      
+      
+      /*val p = Promise[(Request, Exchange)]()
         val f = p.future
         
         createContext(ex => {
@@ -161,7 +174,7 @@ object NodeScala {
           removeContext
         }
         
-        f
+        f*/
       }
     
   }

@@ -26,8 +26,11 @@ package object nodescala {
      *  This future may be useful when testing if timeout logic works correctly.
      */
     def never[T]: Future[T] = {
-      def loop():Nothing = {loop()}
-      future(loop)
+      val p = Promise[T]()
+      p.future
+      
+      //def loop():Nothing = {loop()}
+      //future(loop)
     }
 
     /** Given a list of futures `fs`, returns the future holding the list of values of all the futures from `fs`.

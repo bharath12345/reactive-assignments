@@ -246,12 +246,14 @@ class NodeScalaSuite extends FunSuite {
     }
 
     // wait until server is really installed
-    Thread.sleep(500)
+    Thread.sleep(2000)
 
     def test(req: Request) {
       val webpage = dummy.emit("/testDir", req)
       val content = Await.result(webpage.loaded.future, 3 second)
       val expected = (for (kv <- req.iterator) yield (kv + "\n").toString).mkString
+      //println("content = " + content)
+      //println("expected = " + expected)
       assert(content == expected, s"'$content' vs. '$expected'")
     }
 

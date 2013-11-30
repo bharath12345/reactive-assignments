@@ -68,4 +68,17 @@ class WikipediaApiTest extends FunSuite {
     }
     assert(total == (1 + 1 + 2 + 1 + 2 + 3), s"Sum: $total")
   }
+  
+  test("delayer") {
+    //val abc = Observable(1, 2, 3).zip(Observable.interval(700 millis)).timedOut(1L)
+    val abc = Observable(1,2,3).zip(Observable('a, 'b, 'c))
+    val xyz = abc.toBlockingObservable.toList
+    println("xyz = " + xyz)
+  }
+  
+  test("recovered") {
+    val abc = Observable(List()).recovered
+    val xyz = abc.toBlockingObservable.toList
+    println("abc = " + xyz)
+  }
 }
