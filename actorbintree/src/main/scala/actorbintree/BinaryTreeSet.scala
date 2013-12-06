@@ -9,21 +9,27 @@ import akka.event.LoggingReceive
 
 object BinaryTreeSet {
 
-  trait Operation {
-    def requester: ActorRef
-    def id: Int
-    def elem: Int
-  }
-
   trait OperationReply {
     def id: Int
   }
   
   /** Message to signal successful completion of an insert or remove operation. */
   case class OperationFinished(id: Int) extends OperationReply
+  
+  /** Holds the answer to the Contains request with identifier `id`.
+    * `result` is true if and only if the element is present in the tree.
+    */
+  case class ContainsResult(id: Int, result: Boolean) extends OperationReply
+  
 
   ////////////////
 
+  trait Operation {
+    def requester: ActorRef
+    def id: Int
+    def elem: Int
+  }
+  
   /** Request with identifier `id` to insert an element `elem` into the tree.
     * The actor at reference `requester` should be notified when this operation
     * is completed.
@@ -42,19 +48,11 @@ object BinaryTreeSet {
     */
   case class Remove(requester: ActorRef, id: Int, elem: Int) extends Operation
 
+  /////////////
+  
   /** Request to perform garbage collection*/
   case object GC
 
-  /** Holds the answer to the Contains request with identifier `id`.
-    * `result` is true if and only if the element is present in the tree.
-    */
-  case class ContainsResult(id: Int, result: Boolean) extends OperationReply
-  
-  //////////
-  
-  private case class Job(client: ActorRef, elem: Int)
-  
-  
 }
 
 
@@ -72,35 +70,28 @@ class BinaryTreeSet extends Actor {
 
   /** Accepts `Operation` and `GC` messages. */
   val normal: Receive = LoggingReceive { 
+    
     case Insert(requester: ActorRef, id: Int, elem: Int) => {
       println(s"Received Inserts message id = $id, elem = $elem")
       root ! Insert(requester, id, elem)
-      context.become(waitForInsertToFinish(requester))
+      //context.become(waitForInsertToFinish(requester))
     }
     
     case Contains(requester: ActorRef, id: Int, elem: Int) => {
       println(s"Received Contains message id = $id, elem = $elem")
       root ! Contains(requester, id, elem)
-      context.become(waitForContainsToFinish(requester))
+      //context.become(waitForContainsToFinish(requester))
     }
     
     case Remove(requester: ActorRef, id: Int, elem: Int) => {
-      
+      println(s"Received Remove message id = $id, elem = $elem")
+      root ! Remove(requester, id, elem)
+      //context.become(waitForRemoveToFinish(requester)) 
     }
-    
-    case ContainsResult(id: Int, result: Boolean) => {
-      
-      
-    }
-    
-    case OperationFinished(id: Int) => {
-      
-    }
-    
     
   }
   
-  def waitForInsertToFinish(requester: ActorRef): Receive = LoggingReceive {
+  /*def waitForInsertToFinish(requester: ActorRef): Receive = LoggingReceive {
     case OperationFinished(id: Int) => {
       requester ! OperationFinished(id)
       context.unbecome()
@@ -113,6 +104,13 @@ class BinaryTreeSet extends Actor {
       context.unbecome()
     }
   }
+  
+  def waitForRemoveToFinish(requester: ActorRef): Receive = LoggingReceive {
+    case OperationFinished(id: Int) => {
+      requester ! OperationFinished(id)
+      context.unbecome()
+    }  
+  }*/
 
   /** Handles messages while garbage collection is performed.
     * `newRoot` is the root of the new binary tree where we want to copy
@@ -153,7 +151,8 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
     
     case Insert(requester: ActorRef, id: Int, e: Int) => {
       if(elem == e) {
-        sender ! OperationFinished(id)
+        this.removed = false
+        requester ! OperationFinished(id)
         println(s"element $e already in the tree")
       } else {
         if(e < elem) {
@@ -165,7 +164,7 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
             // no left subtree... so, create 
             val newLeftNode = context.actorOf(BinaryTreeNode.props(e, false), name = s"leftnode-$e-$id" )
             subtrees += (Left -> newLeftNode)
-            sender ! OperationFinished(id)
+            requester ! OperationFinished(id)
             println(s"added $e to the left of $elem")
           }
         } else {
@@ -177,7 +176,7 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
             // no right subtree... so, create 
             val newRightNode = context.actorOf(BinaryTreeNode.props(e, false), name = s"rightnode-$e-$id")
             subtrees += (Right -> newRightNode)
-            sender ! OperationFinished(id)
+            requester ! OperationFinished(id)
             println(s"added $e to the right of $elem")
           }  
         }
@@ -186,7 +185,7 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
     
     case Contains(requester: ActorRef, id: Int, e: Int) => {
       if(elem == e) {
-        sender ! ContainsResult(id, true)
+        requester ! ContainsResult(id, !removed)
       } else {
         if(e < elem) {
           // go left
@@ -194,21 +193,52 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
             // search in subtree
             val leftTreeNode = subtrees(Left)  
             leftTreeNode ! Contains(requester, id, e)
+             
           } else {
             // no left subtree... send a not found message back
-            sender ! ContainsResult(id, false)
+            requester ! ContainsResult(id, false)
           }
         } else {
           // go right
           if(subtrees.contains(Right)) {
             val rightTreeNode = subtrees(Right)
             rightTreeNode ! Contains(requester, id, e)
+            
           } else {
-            sender ! ContainsResult(id, false)
+            requester ! ContainsResult(id, false)
           }
         }  
       }
     }
+    
+    case Remove(requester: ActorRef, id: Int, e: Int) => {
+      if(elem == e) {
+        this.removed = true
+        requester ! OperationFinished(id)
+        println(s"element $e REMOVED")
+      } else {
+        if(e < elem) {
+          // go left
+          if(subtrees.contains(Left)) {
+            // search in subtree
+            val leftTreeNode = subtrees(Left)  
+            leftTreeNode ! Remove(requester, id, e)
+          } else {
+            // no left subtree... send a not found message back
+            requester ! OperationFinished(id)
+          }
+        } else {
+          // go right
+          if(subtrees.contains(Right)) {
+            val rightTreeNode = subtrees(Right)
+            rightTreeNode ! Remove(requester, id, e)
+          } else {
+            requester ! OperationFinished(id)
+          }
+        }  
+      }
+    }
+    
   }
 
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
