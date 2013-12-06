@@ -152,7 +152,36 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
     case CopyTo(treeNode: ActorRef) => ???
     
     case Insert(requester: ActorRef, id: Int, e: Int) => {
-      
+      if(elem == e) {
+        sender ! OperationFinished(id)
+        println(s"element $e already in the tree")
+      } else {
+        if(e < elem) {
+          if(subtrees.contains(Left)) {
+            println(s"going to the left of $elem")
+            val leftTreeNode = subtrees(Left)
+            leftTreeNode ! Insert(requester, id, e)
+          } else {
+            // no left subtree... so, create 
+            val newLeftNode = context.actorOf(BinaryTreeNode.props(e, false), name = s"leftnode-$e-$id" )
+            subtrees += (Left -> newLeftNode)
+            sender ! OperationFinished(id)
+            println(s"added $e to the left of $elem")
+          }
+        } else {
+          if(subtrees.contains(Right)) {
+            val rightTreeNode = subtrees(Right)
+            rightTreeNode ! Insert(requester, id, e)
+            println(s"going to the right of $elem")
+          } else {
+            // no right subtree... so, create 
+            val newRightNode = context.actorOf(BinaryTreeNode.props(e, false), name = s"rightnode-$e-$id")
+            subtrees += (Right -> newRightNode)
+            sender ! OperationFinished(id)
+            println(s"added $e to the right of $elem")
+          }  
+        }
+      }
     }
     
     case Contains(requester: ActorRef, id: Int, e: Int) => {
@@ -161,22 +190,16 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
       } else {
         if(e < elem) {
           // go left
-          
           if(subtrees.contains(Left)) {
             // search in subtree
             val leftTreeNode = subtrees(Left)  
             leftTreeNode ! Contains(requester, id, e)
           } else {
-            // no left subtree... so, create in case of insert... but here, just send a not found message back
-            
-            //val newLeftNode = context.actorOf(BinaryTreeNode.props(e, false))
-            
+            // no left subtree... send a not found message back
             sender ! ContainsResult(id, false)
           }
-          
         } else {
           // go right
-          
           if(subtrees.contains(Right)) {
             val rightTreeNode = subtrees(Right)
             rightTreeNode ! Contains(requester, id, e)

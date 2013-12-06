@@ -52,11 +52,14 @@ class BinaryTreeSuite(_system: ActorSystem) extends TestKit(_system) with FunSui
     topNode ! Contains(testActor, id = 1, 1)
     expectMsg(ContainsResult(1, false))
 
-    //topNode ! Insert(testActor, id = 2, 1)
-    //topNode ! Contains(testActor, id = 3, 1)
-
-    //expectMsg(OperationFinished(2))
-    //expectMsg(ContainsResult(3, true))
+    topNode ! Insert(testActor, id = 2, 1)
+    expectMsg(OperationFinished(2))
+    
+    topNode ! Insert(testActor, id = 3, 2)
+    expectMsg(OperationFinished(3))
+    
+    topNode ! Contains(testActor, id = 4, 1)
+    expectMsg(ContainsResult(4, true))
   }
 
   /*test("instruction example") {
