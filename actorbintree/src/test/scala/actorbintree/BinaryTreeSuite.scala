@@ -30,7 +30,7 @@ class BinaryTreeSuite(_system: ActorSystem) extends TestKit(_system) with FunSui
         case ex: Throwable                  => fail(s"failure to receive confirmation $i/${ops.size}\nRequests:" + ops.mkString("\n    ", "\n     ", ""), ex)
       }
       val replies = repliesUnsorted.sortBy(_.id)
-      println(s"number of replies = $replies.length")
+      //println(s"number of replies = $replies.length")
       if (replies != expectedReplies) {
         val pairs = (replies zip expectedReplies).zipWithIndex filter (x => x._1._1 != x._1._2)
         fail("unexpected replies:" + pairs.map(x => s"at index ${x._2}: got ${x._1._1}, expected ${x._1._2}").mkString("\n    ", "\n    ", ""))
@@ -87,7 +87,7 @@ class BinaryTreeSuite(_system: ActorSystem) extends TestKit(_system) with FunSui
     verify(requester, ops, expectedReplies)
   }
   
-  /*test("behave identically to built-in set (includes GC)") {
+  test("behave identically to built-in set (includes GC)") {
     val rnd = new Random()
     def randomOperations(requester: ActorRef, count: Int): Seq[Operation] = {
       def randomElement: Int = rnd.nextInt(100)
@@ -129,5 +129,5 @@ class BinaryTreeSuite(_system: ActorSystem) extends TestKit(_system) with FunSui
       if (rnd.nextDouble() < 0.1) topNode ! GC
     }
     receiveN(requester, ops, expectedReplies)
-  }*/
+  }
 }

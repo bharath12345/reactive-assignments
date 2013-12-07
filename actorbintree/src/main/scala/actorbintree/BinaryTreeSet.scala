@@ -72,51 +72,43 @@ class BinaryTreeSet extends Actor {
   val normal: Receive = LoggingReceive { 
     
     case Insert(requester: ActorRef, id: Int, elem: Int) => {
-      println(s"Received Inserts message id = $id, elem = $elem")
+      //println(s"Received Inserts message id = $id, elem = $elem")
       root ! Insert(requester, id, elem)
-      //context.become(waitForInsertToFinish(requester))
     }
     
     case Contains(requester: ActorRef, id: Int, elem: Int) => {
-      println(s"Received Contains message id = $id, elem = $elem")
+      //println(s"Received Contains message id = $id, elem = $elem")
       root ! Contains(requester, id, elem)
-      //context.become(waitForContainsToFinish(requester))
     }
     
     case Remove(requester: ActorRef, id: Int, elem: Int) => {
-      println(s"Received Remove message id = $id, elem = $elem")
+      //println(s"Received Remove message id = $id, elem = $elem")
       root ! Remove(requester, id, elem)
-      //context.become(waitForRemoveToFinish(requester)) 
     }
-    
-  }
   
-  /*def waitForInsertToFinish(requester: ActorRef): Receive = LoggingReceive {
-    case OperationFinished(id: Int) => {
-      requester ! OperationFinished(id)
-      context.unbecome()
-    }   
-  }
-  
-  def waitForContainsToFinish(requester: ActorRef): Receive = LoggingReceive {
-    case ContainsResult(id: Int, result: Boolean) => {
-      requester ! ContainsResult(id, result)
-      context.unbecome()
+    case GC => {
+      //println("starting GC...")
+      val newRoot = BinaryTreeNode.props(0, initiallyRemoved = true)
+      root ! CopyTo(context.actorOf(newRoot))
     }
   }
   
-  def waitForRemoveToFinish(requester: ActorRef): Receive = LoggingReceive {
-    case OperationFinished(id: Int) => {
-      requester ! OperationFinished(id)
-      context.unbecome()
-    }  
-  }*/
-
   /** Handles messages while garbage collection is performed.
     * `newRoot` is the root of the new binary tree where we want to copy
     * all non-removed elements into.
     */
-  def garbageCollecting(newRoot: ActorRef): Receive = ???
+  def garbageCollecting(newRoot: ActorRef): Receive = {
+    case CopyFinished =>
+      root ! PoisonPill
+      root = newRoot
+
+      pendingQueue.foreach(newRoot ! _)
+      pendingQueue = Queue.empty
+
+      context.become(normal)
+      
+    case x: Operation => pendingQueue = pendingQueue :+ x
+  }
 
 }
 
@@ -147,17 +139,22 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
 
   /** Handles `Operation` messages and `CopyTo` requests. */
   val normal: Receive = LoggingReceive { 
-    case CopyTo(treeNode: ActorRef) => ???
+    case CopyTo(treeNode: ActorRef) => {
+      // the argument treeNode is the reference to the new root
+      // the receiving actor of this message (this) is the root
+      // so traverse using subtrees and 
+      
+    }
     
     case Insert(requester: ActorRef, id: Int, e: Int) => {
       if(elem == e) {
         this.removed = false
         requester ! OperationFinished(id)
-        println(s"element $e already in the tree")
+        //println(s"element $e already in the tree")
       } else {
         if(e < elem) {
           if(subtrees.contains(Left)) {
-            println(s"going to the left of $elem")
+            //println(s"going to the left of $elem")
             val leftTreeNode = subtrees(Left)
             leftTreeNode ! Insert(requester, id, e)
           } else {
@@ -165,19 +162,19 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
             val newLeftNode = context.actorOf(BinaryTreeNode.props(e, false), name = s"leftnode-$e-$id" )
             subtrees += (Left -> newLeftNode)
             requester ! OperationFinished(id)
-            println(s"added $e to the left of $elem")
+            //println(s"added $e to the left of $elem")
           }
         } else {
           if(subtrees.contains(Right)) {
             val rightTreeNode = subtrees(Right)
             rightTreeNode ! Insert(requester, id, e)
-            println(s"going to the right of $elem")
+            //println(s"going to the right of $elem")
           } else {
             // no right subtree... so, create 
             val newRightNode = context.actorOf(BinaryTreeNode.props(e, false), name = s"rightnode-$e-$id")
             subtrees += (Right -> newRightNode)
             requester ! OperationFinished(id)
-            println(s"added $e to the right of $elem")
+            //println(s"added $e to the right of $elem")
           }  
         }
       }
@@ -215,7 +212,7 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
       if(elem == e) {
         this.removed = true
         requester ! OperationFinished(id)
-        println(s"element $e REMOVED")
+        //println(s"element $e REMOVED")
       } else {
         if(e < elem) {
           // go left
@@ -239,11 +236,45 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
       }
     }
     
+    case CopyTo(treeNode) =>
+      val children = subtrees.values.toSet
+
+      if(removed && children.isEmpty){
+        sender ! CopyFinished
+        self ! PoisonPill
+      } else {
+        if(!removed){
+          treeNode ! Insert(self, 0, elem)
+        }
+
+        children.foreach{ c =>
+          c ! CopyTo(treeNode)
+        }
+
+        context.become(copying(children, removed))
+      }
   }
 
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
     * `insertConfirmed` tracks whether the copy of this node to the new tree has been confirmed.
     */
-  def copying(expected: Set[ActorRef], insertConfirmed: Boolean): Receive = ???
+  def copying(expected: Set[ActorRef], insertConfirmed: Boolean): Receive = {
+    case CopyFinished =>
+      val remaining = expected - sender
+      if(remaining.isEmpty && insertConfirmed){
+        sender ! CopyFinished
+        self ! PoisonPill
+      } else {
+        context.become(copying(remaining, insertConfirmed))
+      }
+
+    case OperationFinished =>
+      if(expected.isEmpty){
+        sender ! CopyFinished
+        self ! PoisonPill
+      } else {
+        context.become(copying(expected, true))
+      }
+  }
 
 }
